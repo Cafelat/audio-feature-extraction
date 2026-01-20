@@ -1,0 +1,45 @@
+{
+    "name": "Dev Container",
+    "workspaceFolder": "/workspace/dataset_generator",
+    "shutdownAction": "stopCompose",
+
+    "dockerComposeFile": ["./compose.yaml"],
+    "service": "ubuntu",
+    "runServices": ["ubuntu"],
+
+    "mounts":[
+        {
+            "type": "bind",
+            "source": "${localWorkspaceFolder}",
+            "target": "${containerWorkspaceFolder}"
+        }
+    ],
+    "features": {
+        "ghcr.io/devcontainers/features/nvidia-cuda:2": {
+            "installCudnnDev": true,
+            "installToolkit": true,
+            "cudaVersion": "12.8",
+            "cudnnVersion": "automatic"
+        },
+        "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/node:1": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+
+    "hostRequirements": {
+        "gpu": "optional"
+    },
+
+    "remoteEnv": {
+        // "PATH": "/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        // "LD_LIBRARY_PATH": "/usr/local/cuda/lib64"
+        "PATH": "${containerEnv:PATH}:/usr/local/cuda/bin"
+    },
+
+    "overrideCommand": true,
+    "postCreateCommand": "uv python install 3.13 && npm install -g @github/copilot && gh auth login && npx cc-sdd@latest --copilot --lang ja",
+    // "postCreateCommand": "bash -lc 'if [ ! -f /usr/include/cudnn_version.h ]; then apt-get update && apt-get install -y libcudnn9-cuda-12 libcudnn9-dev-cuda-12; fi; uv python install 3.13 && uv python pin 3.13'",
+
+    "remoteUser": "root"
+}
