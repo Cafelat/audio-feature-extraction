@@ -7,6 +7,12 @@ from dataset_generator.core.models import (
     ProcessingState,
     SpectrogramData,
 )
+from dataset_generator.core.types import (
+    AudioLoader,
+    DatasetWriter,
+    FeatureExtractor,
+    InverseTransform,
+)
 
 __all__ = [
     "AudioData",
@@ -14,4 +20,8 @@ __all__ = [
     "MelSpectrogramData",
     "FeatureData",
     "ProcessingState",
+    "AudioLoader",
+    "FeatureExtractor",
+    "InverseTransform",
+    "DatasetWriter",
 ]
