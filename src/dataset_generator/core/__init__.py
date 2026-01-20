@@ -1,3 +1,17 @@
 """Core data structures and basic operations."""
 
-__all__ = []
+from dataset_generator.core.models import (
+    AudioData,
+    FeatureData,
+    MelSpectrogramData,
+    ProcessingState,
+    SpectrogramData,
+)
+
+__all__ = [
+    "AudioData",
+    "SpectrogramData",
+    "MelSpectrogramData",
+    "FeatureData",
+    "ProcessingState",
+]
