@@ -1,5 +1,6 @@
 """Core data structures and basic operations."""
 
+from dataset_generator.core.conversions import TensorConverter
 from dataset_generator.core.models import (
     AudioData,
     FeatureData,
@@ -24,4 +25,5 @@ __all__ = [
     "FeatureExtractor",
     "InverseTransform",
     "DatasetWriter",
+    "TensorConverter",
 ]
