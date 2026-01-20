@@ -910,6 +910,236 @@ class AudioPreprocessor:
         return waveform
 
 
+class AudioMixer:
+    """音声ミキサー（SN比制御）
+    
+    2つの音声（クリーン信号とノイズ）を指定したSN比で重畳する。
+    音声強化タスクのノイズ付加データ生成に使用。
+    """
+    
+    def __init__(self, device: str = 'cpu'):
+        """
+        Args:
+            device: 計算デバイス
+        """
+        self.device = device
+        self.converter = TensorConverter()
+    
+    def mix_with_snr(
+        self,
+        clean: AudioData,
+        noise: AudioData,
+        snr_db: float,
+        noise_start: Optional[int] = None
+    ) -> AudioData:
+        """指定したSN比でクリーン信号とノイズを混合
+        
+        Args:
+            clean: クリーン信号（AudioData）
+            noise: ノイズ信号（AudioData）
+            snr_db: 目標SNR（dB） - 大きいほどクリーン、小さいほどノイズが強い
+            noise_start: ノイズの開始位置（サンプル）、Noneの場合はランダム
+            
+        Returns:
+            混合された音声データ
+            
+        Notes:
+            SNR (dB) = 20 * log10(RMS_signal / RMS_noise)
+            → ノイズゲイン = RMS_signal / (RMS_noise * 10^(SNR/20))
+        """
+        # サンプリングレートチェック
+        if clean.sample_rate != noise.sample_rate:
+            raise ValueError(f"Sample rate mismatch: clean={clean.sample_rate}, noise={noise.sample_rate}")
+        
+        # PyTorchに変換
+        clean_waveform = self.converter.to_torch(clean.waveform, device=self.device)
+        noise_waveform = self.converter.to_torch(noise.waveform, device=self.device)
+        
+        # モノラル化（必要に応じて）
+        if clean_waveform.ndim == 2:
+            clean_waveform = clean_waveform.mean(dim=0)
+        if noise_waveform.ndim == 2:
+            noise_waveform = noise_waveform.mean(dim=0)
+        
+        # 長さ調整
+        clean_length = clean_waveform.shape[-1]
+        noise_waveform = self._adjust_noise_length(
+            noise_waveform, clean_length, noise_start
+        )
+        
+        # RMS計算
+        clean_rms = self._calculate_rms(clean_waveform)
+        noise_rms = self._calculate_rms(noise_waveform)
+        
+        # SNRに基づいてノイズゲイン計算
+        snr_linear = 10 ** (snr_db / 20.0)
+        noise_gain = clean_rms / (noise_rms * snr_linear)
+        
+        # ノイズをスケーリング
+        scaled_noise = noise_waveform * noise_gain
+        
+        # 混合
+        mixed_waveform = clean_waveform + scaled_noise
+        
+        # メタデータ作成
+        metadata = clean.metadata.copy()
+        metadata.update({
+            'mixed': True,
+            'snr_db': snr_db,
+            'noise_source': noise.metadata.get('file_path', 'unknown'),
+            'clean_rms': clean_rms.item(),
+            'noise_rms': noise_rms.item(),
+            'noise_gain': noise_gain.item()
+        })
+        
+        return AudioData(
+            waveform=mixed_waveform,
+            sample_rate=clean.sample_rate,
+            n_channels=1,
+            duration=clean.duration,
+            metadata=metadata
+        )
+    
+    def _adjust_noise_length(
+        self,
+        noise: torch.Tensor,
+        target_length: int,
+        start: Optional[int] = None
+    ) -> torch.Tensor:
+        """ノイズの長さをクリーン信号に合わせる
+        
+        Args:
+            noise: ノイズ波形
+            target_length: 目標長（クリーン信号の長さ）
+            start: 開始位置、Noneの場合はランダム
+            
+        Returns:
+            調整されたノイズ波形
+        """
+        noise_length = noise.shape[-1]
+        
+        if noise_length == target_length:
+            return noise
+        
+        elif noise_length < target_length:
+            # ノイズが短い場合、繰り返して長さを合わせる
+            num_repeats = (target_length // noise_length) + 1
+            noise = noise.repeat(num_repeats)
+            noise = noise[:target_length]
+        
+        else:
+            # ノイズが長い場合、切り出す
+            if start is None:
+                # ランダムな位置から開始
+                max_start = noise_length - target_length
+                start = torch.randint(0, max_start + 1, (1,)).item()
+            else:
+                # 指定位置から開始（範囲チェック）
+                max_start = noise_length - target_length
+                start = min(start, max_start)
+            
+            noise = noise[start:start + target_length]
+        
+        return noise
+    
+    def _calculate_rms(self, waveform: torch.Tensor) -> torch.Tensor:
+        """RMS（Root Mean Square）を計算
+        
+        Args:
+            waveform: 音声波形
+            
+        Returns:
+            RMS値
+        """
+        return torch.sqrt(torch.mean(waveform ** 2))
+    
+    def batch_mix(
+        self,
+        clean_list: list[AudioData],
+        noise_list: list[AudioData],
+        snr_db_range: tuple[float, float] = (0.0, 20.0)
+    ) -> list[AudioData]:
+        """バッチ処理: 複数のクリーン信号にランダムなノイズを混合
+        
+        Args:
+            clean_list: クリーン信号のリスト
+            noise_list: ノイズ信号のリスト
+            snr_db_range: SNRの範囲（min, max） - ランダムに選択
+            
+        Returns:
+            混合された音声データのリスト
+        """
+        mixed_list = []
+        
+        for clean in clean_list:
+            # ランダムにノイズを選択
+            noise = noise_list[torch.randint(0, len(noise_list), (1,)).item()]
+            
+            # ランダムにSNRを選択
+            snr_db = torch.rand(1).item() * (snr_db_range[1] - snr_db_range[0]) + snr_db_range[0]
+            
+            # 混合
+            mixed = self.mix_with_snr(clean, noise, snr_db)
+            mixed_list.append(mixed)
+        
+        return mixed_list
+
+
+**使用例: クリーン信号にノイズを付加**
+
+```python
+# 1. クリーン音声とノイズを読み込み
+loader = AudioFileLoader()
+clean_audio = loader.load('speech_clean.wav')
+noise_audio = loader.load('background_noise.wav')
+
+# 2. SNR 10dBで混合
+mixer = AudioMixer(device='cuda')
+noisy_audio = mixer.mix_with_snr(
+    clean=clean_audio,
+    noise=noise_audio,
+    snr_db=10.0  # 10dB SNR
+)
+
+# 3. バッチ処理: 複数のクリーン信号にランダムなノイズを付加
+clean_list = [loader.load(f'clean_{i}.wav') for i in range(100)]
+noise_list = [loader.load(f'noise_{i}.wav') for i in range(10)]
+
+noisy_list = mixer.batch_mix(
+    clean_list=clean_list,
+    noise_list=noise_list,
+    snr_db_range=(0.0, 20.0)  # 0～20dBの範囲でランダム
+)
+
+# 4. ノイズ付加後にスペクトログラム抽出
+extractor = STFTExtractor()
+noisy_specs = [extractor.extract(audio) for audio in noisy_list]
+
+# 5. データセット保存
+writer = HDF5DatasetWriter(format=DatasetFormat.MAGNITUDE_PHASE_TRIG)
+writer.write(noisy_specs, 'noisy_dataset.h5', split='train')
+```
+
+**SNR計算の詳細**:
+
+```python
+# SNR (Signal-to-Noise Ratio) の定義
+# SNR (dB) = 20 * log10(RMS_signal / RMS_noise)
+
+# 目標SNRを達成するためのノイズゲイン
+# noise_gain = RMS_signal / (RMS_noise * 10^(SNR/20))
+
+# 例: SNR = 10dB の場合
+# noise_gain = RMS_signal / (RMS_noise * 10^0.5)
+#            = RMS_signal / (RMS_noise * 3.162)
+
+# 高いSNR（例: 20dB） → クリーンに近い（ノイズが小さい）
+# 低いSNR（例: 0dB）  → ノイズが大きい（信号とノイズが同程度）
+# 負のSNR（例: -5dB） → ノイズが信号より大きい
+```
+```
+
+
 class SpectrogramPreprocessor:
     """スペクトログラム前処理器
     
