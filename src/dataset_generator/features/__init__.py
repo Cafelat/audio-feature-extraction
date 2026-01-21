@@ -1,3 +1,7 @@
 """Feature extraction modules."""
 
-__all__ = []
+from dataset_generator.features.stft import STFTExtractor
+
+__all__ = [
+    "STFTExtractor",
+]
