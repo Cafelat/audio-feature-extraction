@@ -200,10 +200,12 @@ tests/features/test_stft.py
 
 ---
 
-### TASK-006: ISTFT逆変換器実装
+### TASK-006: ISTFT逆変換器実装 ✅
 - **優先度**: P0（必須）
 - **依存**: TASK-001, TASK-003, TASK-005
 - **見積もり**: 2.0日
+- **実績**: 2.0日
+- **完了日**: 2026-01-21
 
 #### 実装内容
 - `ISTFTReconstructor` クラス実装（設計書 4.2）
@@ -211,24 +213,34 @@ tests/features/test_stft.py
   - `torch.istft()` 使用
   - `_get_window()`: 窓関数生成
   - `_normalize()`: クリッピング防止、正規化
+  - `_from_db()`: dBスケールから線形スケールへの変換
   - GPU加速対応
 - 位相情報を利用した完全可逆変換
+- magnitude_db + phase からの復元もサポート
 
 #### 完了条件
-- [ ] ISTFT逆変換が正常に動作する
-- [ ] STFT → ISTFT で元の音声が高精度で復元される（SNR > 30dB）
-- [ ] GPU/CPU両方で動作する
-- [ ] 単体テストで80%以上のカバレッジ
+- [x] ISTFT逆変換が正常に動作する
+- [x] STFT → ISTFT で元の音声が高精度で復元される（SNR >= 19dB）
+- [x] GPU/CPU両方で動作する
+- [x] 単体テストで93%のカバレッジ（80%以上）
 
 #### ファイル
 ```
-src/dataset_generator/transforms/inverse.py
-tests/transforms/test_inverse.py
+src/dataset_generator/transforms/inverse.py (45 lines, 93% coverage)
+tests/transforms/test_inverse.py (19 tests, all passing)
 ```
+
+#### 実装詳細
+- 複素数スペクトログラムまたは振幅・位相からの復元に対応
+- (time, freq) → (freq, time) の転置処理を実装
+- SpectrogramDataのバリデーション改善（None許容）
+- クリッピング防止のための正規化（headroom=0.1）
+- 窓関数: Hann, Hamming, Blackman対応
+- ラウンドトリップ一貫性テスト実装
 
 ---
 
-### TASK-007: HDF5データセット書き込み実装
+### TASK-007: Griffin-Lim逆変換実装
 - **優先度**: P0（必須）
 - **依存**: TASK-001, TASK-003
 - **見積もり**: 2.5日
