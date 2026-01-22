@@ -98,22 +98,40 @@ class SpectrogramData:
 
     def __post_init__(self) -> None:
         """Validate data shape and type."""
-        # Check shape consistency
-        if self.magnitude_db.shape != self.phase.shape:
+        # At least one of complex_spec or (magnitude_db + phase) must be provided
+        has_complex = self.complex_spec is not None
+        has_mag_phase = self.magnitude_db is not None and self.phase is not None
+
+        if not has_complex and not has_mag_phase:
             raise ValueError(
-                f"magnitude_db and phase shape mismatch: "
-                f"{self.magnitude_db.shape} vs {self.phase.shape}"
+                "Either complex_spec or both magnitude_db and phase must be provided"
             )
 
-        if self.complex_spec.shape != self.magnitude_db.shape:
-            raise ValueError(
-                f"complex_spec and magnitude_db shape mismatch: "
-                f"{self.complex_spec.shape} vs {self.magnitude_db.shape}"
-            )
+        # Check shape consistency only if both magnitude_db and phase exist
+        if self.magnitude_db is not None and self.phase is not None:
+            if self.magnitude_db.shape != self.phase.shape:
+                raise ValueError(
+                    f"magnitude_db and phase shape mismatch: "
+                    f"{self.magnitude_db.shape} vs {self.phase.shape}"
+                )
 
-        # Verify frequency bin count
+        # Check complex_spec shape if it exists and magnitude_db exists
+        if self.complex_spec is not None and self.magnitude_db is not None:
+            if self.complex_spec.shape != self.magnitude_db.shape:
+                raise ValueError(
+                    f"complex_spec and magnitude_db shape mismatch: "
+                    f"{self.complex_spec.shape} vs {self.magnitude_db.shape}"
+                )
+
+        # Verify frequency bin count (use whichever is available)
         expected_freq_bins = self.n_fft // 2 + 1
-        actual_freq_bins = self.magnitude_db.shape[1]
+        if self.magnitude_db is not None:
+            actual_freq_bins = self.magnitude_db.shape[1]
+        elif self.complex_spec is not None:
+            actual_freq_bins = self.complex_spec.shape[1]
+        else:
+            return  # No data to validate
+
         if actual_freq_bins != expected_freq_bins:
             raise ValueError(
                 f"Frequency bins mismatch: expected {expected_freq_bins} "
