@@ -911,10 +911,30 @@ class AudioPreprocessor:
 
 
 class AudioMixer:
-    """音声ミキサー（SN比制御）
+    """音声ミキサー（SN比制御＋クリッピング対策）
     
     2つの音声（クリーン信号とノイズ）を指定したSN比で重畳する。
     音声強化タスクのノイズ付加データ生成に使用。
+    
+    クリッピング対策:
+    ------
+    ノイズと信号を混合すると振幅が1.0を超える可能性がある。
+    その場合、以下の処理を行う：
+    
+    1. 最大振幅を検出（max_amplitude > 1.0）
+    2. headroom = 0.01 を確保して正規化係数を計算
+    3. 信号全体を正規化係数で除算
+    4. 実際のSN比を再計算（正規化によるSNR低下を考慮）
+    5. メタデータに正規化情報を保存
+    
+    ノイズ除去評価での活用:
+    ------
+    ノイズ除去モデルの評価時に以下を確認できる：
+    - snr_db_actual: クリッピング対策後の実際のSN比
+    - normalization_factor: 振幅補正が必要かを判定
+    - clipping_occurred: クリッピングの有無
+    
+    これにより「同じ大きさの信号」で評価していることを保証できる。
     """
     
     def __init__(self, device: str = 'cpu'):
@@ -941,11 +961,31 @@ class AudioMixer:
             noise_start: ノイズの開始位置（サンプル）、Noneの場合はランダム
             
         Returns:
-            混合された音声データ
+            混合された音声データ（メタデータに混合条件と正規化情報を含む）
+            
+        Metadata:
+            - snr_db_requested: ユーザーが指定したSN比（dB）
+            - snr_db_actual: クリッピング対策後の実際のSN比（dB）
+            - normalization_factor: クリッピング回避のための正規化係数
+              * 1.0の場合はクリッピングなし
+              * 1.0より大きい場合はクリッピング発生（正規化済み）
+            - clipping_occurred: クリッピング検出フラグ（bool）
+              * ノイズ除去モデルの評価時に、振幅補正が必要かを判定
+            - max_amplitude_before_norm: 正規化前の最大振幅
+            - clean_rms: クリーン信号のRMS値
+            - noise_rms: ノイズ信号のRMS値
+            - noise_gain: ノイズゲイン係数
+            - noise_source: ノイズの出処
             
         Notes:
             SNR (dB) = 20 * log10(RMS_signal / RMS_noise)
             → ノイズゲイン = RMS_signal / (RMS_noise * 10^(SNR/20))
+            
+            クリッピング対策:
+            - 混合後の最大振幅が1.0を超える場合、信号全体をスケーリング
+            - headroom = 0.01（-40dB）を確保して正規化
+            - SNRの変化: Δ SNR = -20 * log10(normalization_factor)
+            - ノイズ除去評価時に snr_db_actual を参照して信頼性を検証
         """
         # サンプリングレートチェック
         if clean.sample_rate != noise.sample_rate:
@@ -981,15 +1021,37 @@ class AudioMixer:
         # 混合
         mixed_waveform = clean_waveform + scaled_noise
         
+        # クリッピング対策：振幅が1.0を超える場合は正規化
+        max_amplitude = torch.abs(mixed_waveform).max()
+        clipping_occurred = max_amplitude > 1.0
+        normalization_factor = 1.0
+        
+        if clipping_occurred:
+            # headroom を確保して正規化（0.01 余裕 = -40dB）
+            headroom = 0.01
+            normalization_factor = float((max_amplitude + headroom).item())
+            mixed_waveform = mixed_waveform / normalization_factor
+            
+            # 実際のSN比を再計算（正規化後）
+            # SNR の変化 = -20 * log10(normalization_factor)
+            snr_loss_db = 20.0 * torch.log10(torch.tensor(normalization_factor)).item()
+            snr_db_actual = snr_db - snr_loss_db
+        else:
+            snr_db_actual = snr_db
+        
         # メタデータ作成
         metadata = clean.metadata.copy()
         metadata.update({
             'mixed': True,
-            'snr_db': snr_db,
+            'snr_db_requested': snr_db,  # 指定されたSN比
+            'snr_db_actual': snr_db_actual,  # クリッピング対策後の実際のSN比
+            'normalization_factor': normalization_factor,  # クリッピング回避用正規化係数
+            'clipping_occurred': clipping_occurred,  # クリッピング発生フラグ
             'noise_source': noise.metadata.get('file_path', 'unknown'),
             'clean_rms': clean_rms.item(),
             'noise_rms': noise_rms.item(),
-            'noise_gain': noise_gain.item()
+            'noise_gain': noise_gain.item(),
+            'max_amplitude_before_norm': max_amplitude.item()
         })
         
         return AudioData(
@@ -1137,6 +1199,60 @@ writer.write(noisy_specs, 'noisy_dataset.h5', split='train')
 # 低いSNR（例: 0dB）  → ノイズが大きい（信号とノイズが同程度）
 # 負のSNR（例: -5dB） → ノイズが信号より大きい
 ```
+
+**メタデータを用いたノイズ除去モデルの評価**:
+
+```python
+# ノイズ除去モデルの評価フェーズで、メタデータを参照
+
+def evaluate_denoising_model(denoised_audio: AudioData, noisy_audio: AudioData):
+    """
+    ノイズ除去後の出力品質を検証
+    
+    Args:
+        denoised_audio: ノイズ除去後の音声
+        noisy_audio: ノイズ混合時のAudioData（メタデータ含む）
+    """
+    
+    # メタデータから混合条件を取得
+    metadata = noisy_audio.metadata
+    snr_requested = metadata['snr_db_requested']
+    snr_actual = metadata['snr_db_actual']
+    norm_factor = metadata['normalization_factor']
+    clipping_occurred = metadata['clipping_occurred']
+    
+    print(f"Target SNR: {snr_requested} dB")
+    print(f"Actual SNR: {snr_actual} dB (after clipping mitigation)")
+    print(f"Clipping occurred: {clipping_occurred}")
+    
+    # 重要: 振幅の検証
+    if clipping_occurred:
+        # クリッピングがあった場合、正規化係数で逆補正
+        expected_amplitude = metadata['clean_rms'] / norm_factor
+        print(f"Amplitude correction factor: {norm_factor:.4f}")
+    else:
+        expected_amplitude = metadata['clean_rms']
+    
+    # 復元後の信号の振幅を確認
+    denoised_rms = calculate_rms(denoised_audio.waveform)
+    amplitude_ratio = denoised_rms / expected_amplitude
+    
+    print(f"Expected amplitude (RMS): {expected_amplitude:.6f}")
+    print(f"Denoised amplitude (RMS): {denoised_rms:.6f}")
+    print(f"Amplitude preservation: {amplitude_ratio:.1%}")
+    
+    # 品質判定
+    if abs(amplitude_ratio - 1.0) > 0.1:
+        warning("Amplitude mismatch detected - evaluation may be invalid")
+    
+    return {
+        'snr_reference': snr_actual,
+        'amplitude_preservation': amplitude_ratio,
+        'clipping_consideration': clipping_occurred
+    }
+```
+
+このメタデータにより、**ノイズ除去モデルの訓練と評価が公正かつ再現可能**になります。
 ```
 
 
