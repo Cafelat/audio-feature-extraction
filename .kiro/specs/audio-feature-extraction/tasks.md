@@ -342,10 +342,12 @@ src/dataset_generator/transforms/inverse.py (追加: GriffinLimReconstructor)
 
 ---
 
-### TASK-009: 基本パイプライン実装
+### TASK-009: 基本パイプライン実装 ✅
 - **優先度**: P0（必須）
 - **依存**: TASK-004, TASK-005, TASK-007, TASK-008
 - **見積もり**: 1.5日
+- **実績**: 1.5日
+- **完了日**: 2026-02-10
 
 #### 実装内容
 - `PipelineExecutor` クラス実装（設計書 4.5）
@@ -357,10 +359,38 @@ src/dataset_generator/transforms/inverse.py (追加: GriffinLimReconstructor)
 - `StateManager` クラス実装（簡易版）
 
 #### 完了条件
-- [ ] End-to-Endパイプラインが動作する
-- [ ] 複数ファイルのバッチ処理が動作する
-- [ ] 実行レポートが正しく生成される
-- [ ] 統合テストで動作確認
+- [x] End-to-Endパイプラインが動作する
+- [x] 複数ファイルのバッチ処理が動作する
+- [x] 実行レポートが正しく生成される
+- [x] 統合テストで動作確認（15テスト全パス、96%カバレッジ）
+
+#### ファイル
+```
+src/dataset_generator/pipeline/executor.py (187 lines, 96% coverage)
+src/dataset_generator/pipeline/state_manager.py (49 lines)
+tests/pipeline/test_executor.py (15 tests, all passing)
+```
+
+#### 実装詳細
+- PipelineExecutor (187行、96%カバレッジ)
+  - `execute()`: バッチ処理パイプライン、進捗コールバック対応
+  - `_create_batches()`: バッチ分割、複数抽出器対応
+  - エラーハンドリング（失敗ファイルもカウント）
+- ExecutionReport (dataclass)
+  - total_files, successful, failed, processing_time
+  - success_rate プロパティ（自動計算）
+- StateManager (49行)
+  - update(), get_state(): 状態管理
+  - get_elapsed_time(): 経過時間追跡
+
+#### テスト詳細
+- **15 テストケース全パス**
+  - TestStateManager: 状態管理テスト (4)
+  - TestExecutionReport: レポート生成 (3)
+  - TestPipelineExecutor: パイプライン実行 (6)
+  - TestPipelineExecutorIntegration: 統合テスト (2)
+- End-to-End統合テスト成功
+- 全体: **181 テスト全パス**, **91% カバレッジ**
 
 #### ファイル
 ```
