@@ -279,10 +279,12 @@ tests/io/test_dataset_writer.py
 
 ---
 
-### TASK-008: 音声復元器実装
+### TASK-008: 音声復元器実装 ✅
 - **優先度**: P0（必須）
 - **依存**: TASK-006, TASK-007
 - **見積もり**: 2.0日
+- **実績**: 2.0日
+- **完了日**: 2026-02-09
 
 #### 実装内容
 - `AudioReconstructor` クラス実装（設計書 4.4）
@@ -301,19 +303,40 @@ tests/io/test_dataset_writer.py
   - soundfile による音声ファイル出力
 
 #### 完了条件
-- [ ] モデル出力（4種類すべての形式）から音声が正常に復元される
-- [ ] 各形式で複素数スペクトログラムが正しく復元される
-- [ ] データセットからの復元が動作する
-- [ ] パディングが正しく除去される
-- [ ] バッチ復元が動作する
-- [ ] 音声ファイルとして保存できる
-- [ ] 単体テストで80%以上のカバレッジ
+- [x] モデル出力（4種類すべての形式）から音声が正常に復元される
+- [x] 各形式で複素数スペクトログラムが正しく復元される
+- [x] データセットからの復元が動作する
+- [x] パディングが正しく除去される
+- [x] バッチ復元が動作する
+- [x] 音声ファイルとして保存できる
+- [x] 単体テストで80%以上のカバレッジ（95%達成）
 
 #### ファイル
 ```
-src/dataset_generator/io/audio_reconstructor.py
-tests/io/test_audio_reconstructor.py
+src/dataset_generator/io/audio_reconstructor.py (189 lines, 95% coverage)
+tests/io/test_audio_reconstructor.py (17 tests, all passing)
+src/dataset_generator/transforms/inverse.py (追加: GriffinLimReconstructor)
 ```
+
+#### 実装詳細
+- AudioReconstructor クラス（189行、95% カバレッジ）
+  - `reconstruct_from_model_output()`: 4形式対応、自動メソッド選択
+  - `_reconstruct_complex_spec()`: 複素数復元（COMPLEX, MAGNITUDE_PHASE, MAGNITUDE_PHASE_TRIG, MAGNITUDE_ONLY）
+  - `reconstruct_from_dataset()`: HDF5データセットの単一サンプル復元
+  - `batch_reconstruct_from_dataset()`: バッチ復元、WAV出力
+- GriffinLimReconstructor クラス（transforms/inverse.py に追加）
+  - n_iter反復、momentum係数対応
+  - MAGNITUDE_ONLY形式の復元に対応
+
+#### テスト詳細
+- **17 テストケース全パス**
+  - TestAudioReconstructorInit: 初期化テスト (2)
+  - TestReconstructComplexSpec: 複素数復元（4形式） (4)
+  - TestReconstructFromModelOutput: モデル出力復元 (6)
+  - TestReconstructFromDataset: HDF5復元 (1)
+  - TestBatchReconstructFromDataset: バッチ復元 (1)
+  - TestInvalidInputs: エラーハンドリング (3)
+- 全体カバレッジ: **92%** (166テスト全パス、回帰なし)
 
 **注記**: Griffin-Limアルゴリズムの実装（`GriffinLimReconstructor`）は既に TASK-006 の transforms/inverse.py に含まれる予定ですが、実装スケジュール調整により TASK-008 の AudioReconstructor 内で `GriffinLimReconstructor` を利用します。
 
