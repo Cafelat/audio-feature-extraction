@@ -44,3 +44,13 @@
 - リアルタイム処理: <100ms latency 目標
 - バッチ処理: 可変サイズ入力パディング対応
 - Griffin-Lim: 振幅のみからの音声復元（反復最適化）
+
+## データ処理パターン
+- **AudioMixer のメタデータ戦略**:
+  - クリッピング対策後の実際のSN比を記録（`snr_db_actual`）
+  - 正規化係数とクリッピングフラグを保持
+  - ノイズ除去モデル評価時の振幅検証を可能にする
+  - headroom = 0.01 （-40dB余裕）で正規化
+- **デバイス管理**: `device` パラメータで CPU/GPU を動的選択
+- **型変換**: TensorConverter で numpy ↔ torch 相互変換
+- **検証戦略**: dataclass の `__post_init__` で shape/type チェック

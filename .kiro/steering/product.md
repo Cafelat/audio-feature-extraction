@@ -20,15 +20,26 @@
 - **robust な音声復元** - 振幅のみからのGriffin-Lim逆変換対応
 - **型安全性** - Protocol ベースのインターフェース定義と完全な型ヒント
 
-## 実装済み主要機能
+## 実装済み主要機能（Phase 1完了）
 - **AudioData/SpectrogramData**: 音声・スペクトログラムの検証付きデータモデル
 - **STFTExtractor**: GPU対応の STFT 特徴量抽出
-- **ISTFTReconstructor**: スペクトログラムから音声への逆変換
+- **ISTFTReconstructor**: スペクトログラムから音声への逆変換（位相情報保持）
 - **TensorConverter**: numpy/torch テンソル間の形式変換
 - **AudioFileLoader**: WAV/FLAC 読み込み、リサンプリング対応
 - **Protocol ベースの型チェック**: AudioLoader プロトコルによる拡張性
 
+## 計画中の主要機能（Phase 2以降）
+- **AudioMixer**: SN比制御によるノイズ重畳（ノイズ除去モデル訓練用）
+  - クリッピング対策と実際のSN比メタデータ保持
+  - ノイズ除去評価時の振幅検証を可能にする設計
+- **AudioPreprocessor**: 正規化、無音検出、固定長調整
+- **HDF5DatasetWriter**: 大規模データセット出力（チャンク圧縮対応）
+- **StreamBuffer**: リアルタイム処理用バッファ管理
+- **MelSpectrogramExtractor**: メルスケール特徴量抽出
+- **Griffin-Lim逆変換**: 振幅のみからの音声復元（反復最適化）
+
 ## データモデル設計原則
 - 各モデルは初期化時にデータ検証（shape、type、consistency チェック）を実施
-- メタデータ辞書で拡張可能な構造
+- メタデータ辞書で拡張可能な構造（AudioMixer では SNR情報・クリッピング対策を記録）
 - numpy/torch の両テンソル形式をサポート
+- デバイス非依存設計（CPU/GPU 自動選択）

@@ -8,36 +8,44 @@ dataset_generator/
 ├── src/dataset_generator/
 │   ├── cli/            # CLIエントリーポイント (Click ベース)
 │   ├── core/           # データモデル・型定義・コンバーター
-│   │   ├── models.py       # AudioData, SpectrogramData (dataclass)
-│   │   ├── types.py        # Protocol ベースインターフェース
-│   │   └── conversions.py  # TensorConverter (形式変換)
+│   │   ├── models.py       # AudioData, SpectrogramData (dataclass) ✅
+│   │   ├── types.py        # Protocol ベースインターフェース ✅
+│   │   └── conversions.py  # TensorConverter (形式変換) ✅
 │   ├── features/       # 特徴抽出モジュール
-│   │   └── stft.py         # STFTExtractor
+│   │   └── stft.py         # STFTExtractor ✅
 │   ├── io/             # 入出力処理
-│   │   └── audio_loader.py # AudioFileLoader (soundfile/librosa)
+│   │   └── audio_loader.py # AudioFileLoader (soundfile/librosa) ✅
 │   ├── transforms/     # 変換・復元処理
-│   │   └── inverse.py      # ISTFTReconstructor (Griffin-Lim)
-│   ├── pipeline/       # パイプライン統合 (将来実装)
-│   ├── config/         # 設定管理 (将来実装)
+│   │   └── inverse.py      # ISTFTReconstructor (Griffin-Lim) ✅
+│   ├── pipeline/       # パイプライン統合 (Phase 2)
+│   ├── config/         # 設定管理 (Phase 2)
 │   └── utils/          # ユーティリティ関数
 ├── tests/              # テストコード (pytest)
-│   ├── core/           # core モジュールのテスト
-│   ├── features/       # features モジュールのテスト
-│   ├── io/             # io モジュールのテスト
-│   ├── transforms/     # transforms モジュールのテスト
+│   ├── core/           # core モジュールのテスト ✅
+│   ├── features/       # features モジュールのテスト ✅
+│   ├── io/             # io モジュールのテスト ✅
+│   ├── transforms/     # transforms モジュールのテスト ✅
 │   ├── cli/            # CLI テスト
 │   ├── config/         # config テスト
 │   ├── pipeline/       # pipeline テスト
 │   ├── utils/          # utils テスト
-│   ├── conftest.py     # pytest フィクスチャ・設定
-│   └── test_package.py # パッケージ全体テスト
+│   ├── conftest.py     # pytest フィクスチャ・設定 ✅
+│   └── test_package.py # パッケージ全体テスト ✅
 ├── .devcontainer/      # Dev Container 設定
 ├── htmlcov/            # カバレッジレポート (生成物)
 ├── pyproject.toml      # 依存関係・ツール設定
 ├── README.md           # プロジェクト説明
 └── .python-version     # Python バージョン指定
 
+✅ = 実装完了（TASK-000〜006）
 ```
+
+## 実装進捗
+- **Phase 0**: プロジェクト環境構築 ✅
+- **Phase 1 (P0必須)**: コアデータモデル、STFT/ISTFT、AudioLoader ✅ (6/12 タスク完了)
+- **Phase 2 (P1高優先度)**: AudioMixer、前処理、HDF5、ストリーミング ⏳ (計画中)
+- **Phase 3 (P2中優先度)**: メルスペクトログラム、MFCC、設定管理 ⏳
+- **Phase 4 (P3低優先度)**: カスタム機能、拡張 ⏳
 
 ## コーディング規約
 - **PEP 8準拠** - ruff フォーマッターで自動チェック
