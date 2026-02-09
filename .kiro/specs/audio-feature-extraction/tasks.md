@@ -240,10 +240,10 @@ tests/transforms/test_inverse.py (19 tests, all passing)
 
 ---
 
-### TASK-007: Griffin-Lim逆変換実装
+### TASK-007: HDF5データセット書き込み実装
 - **優先度**: P0（必須）
 - **依存**: TASK-001, TASK-003
-- **見積もり**: 2.5日
+- **見積もり**: 2.0日
 
 #### 実装内容
 - `HDF5DatasetWriter` クラス実装（設計書 4.4）
@@ -315,11 +315,13 @@ src/dataset_generator/io/audio_reconstructor.py
 tests/io/test_audio_reconstructor.py
 ```
 
+**注記**: Griffin-Limアルゴリズムの実装（`GriffinLimReconstructor`）は既に TASK-006 の transforms/inverse.py に含まれる予定ですが、実装スケジュール調整により TASK-008 の AudioReconstructor 内で `GriffinLimReconstructor` を利用します。
+
 ---
 
 ### TASK-009: 基本パイプライン実装
 - **優先度**: P0（必須）
-- **依存**: TASK-004, TASK-005, TASK-007
+- **依存**: TASK-004, TASK-005, TASK-007, TASK-008
 - **見積もり**: 1.5日
 
 #### 実装内容
