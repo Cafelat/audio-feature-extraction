@@ -1,5 +1,6 @@
 """Type definitions and Protocol interfaces."""
 
+from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
 from dataset_generator.core.models import (
@@ -8,6 +9,25 @@ from dataset_generator.core.models import (
     MelSpectrogramData,
     SpectrogramData,
 )
+
+
+class DatasetFormat(Enum):
+    """Dataset storage format for CNN input.
+
+    Each format has different channel configuration (time, freq, channels).
+    """
+
+    # Complex format: [real, imag] - 2 channels
+    COMPLEX = "complex"
+
+    # Magnitude and phase format: [mag_db, phase] - 2 channels
+    MAGNITUDE_PHASE = "magnitude_phase"
+
+    # Magnitude and phase trigonometric format: [mag_db, cos(phase), sin(phase)] - 3 channels
+    MAGNITUDE_PHASE_TRIG = "magnitude_phase_trig"
+
+    # Magnitude only format: [mag_db] - 1 channel (for Griffin-Lim)
+    MAGNITUDE_ONLY = "magnitude_only"
 
 
 @runtime_checkable
